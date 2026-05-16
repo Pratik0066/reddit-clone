@@ -25,17 +25,13 @@ export default function Navbar() {
         {/* Auth Buttons */}
         <div className="flex items-center gap-4">
           <Show when="signed-out">
-            {/* What users see when logged out */}
             <SignInButton mode="modal">
-              <button className="bg-orange-500 text-white px-4 py-1.5 rounded-full text-sm font-semibold hover:bg-orange-600 transition">
-                Log In
-              </button>
+              <button className="bg-orange-500 text-white px-4 py-1.5 rounded-full text-sm font-semibold hover:bg-orange-600 transition">Log In</button>
             </SignInButton>
           </Show>
 
           <Show when="signed-in">
-            {/* What users see when logged in */}
-            <UserButton afterSignOutUrl="/" />
+            <UserButton />
           </Show>
         </div>
 
