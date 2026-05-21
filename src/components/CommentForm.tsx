@@ -1,67 +1,89 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useUser } from "@clerk/nextjs"
+import { SignInButton } from "@clerk/nextjs"
+import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 interface CommentFormProps {
-  postId: string;
+  postId: string
 }
 
 export default function CommentForm({ postId }: CommentFormProps) {
-  const [text, setText] = useState("");
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
+  const [text, setText] = useState("")
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const { user } = useUser()
+
+  if (!user) {
+    return (
+      <div className="bg-[#1a282d]/50 border border-[#223237] rounded-lg p-4 text-center mb-4">
+        <p className="text-sm text-[#82959b] mb-2">
+          Log in or sign up to leave a comment
+        </p>
+        <SignInButton mode="modal">
+          <Button size="sm" className="cursor-pointer">
+            Log In
+          </Button>
+        </SignInButton>
+      </div>
+    )
+  }
 
   const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
+    e.preventDefault()
+    if (!text.trim()) return
+    setLoading(true)
 
     try {
-      // We will build this API route in the very next step!
       const response = await fetch("/api/comments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text,
-          postId,
-        }),
-      });
+        body: JSON.stringify({ text, postId }),
+      })
 
-      if (!response.ok) {
-        throw new Error("Failed to post comment.");
-      }
+      if (!response.ok) throw new Error("Failed to post comment.")
 
-      // Clear the form and refresh the page to show the new comment
-      setText("");
-      router.refresh();
-      
+      setText("")
+      toast.success("Comment posted!")
+      router.refresh()
     } catch (error) {
-      console.error(error);
+      toast.error("Failed to post comment")
+      console.error(error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   return (
-    <form onSubmit={onSubmit} className="mb-6 flex flex-col gap-2">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder="What are your thoughts?"
-        rows={4}
-        className="w-full p-4 border border-gray-300 rounded-lg outline-none focus:border-orange-500 resize-y text-sm"
-        disabled={loading}
-        required
-      />
-      <div className="flex justify-end mt-2">
-        <button
-          type="submit"
-          disabled={loading || text.trim().length === 0}
-          className="bg-orange-500 text-white px-6 py-2 rounded-full font-semibold text-sm hover:bg-orange-600 disabled:opacity-50 transition"
-        >
-          {loading ? "Posting..." : "Comment"}
-        </button>
+    <form onSubmit={onSubmit} className="mb-4">
+      <div className="flex items-start gap-3">
+        <div className="size-8 rounded-full bg-[#ff4500] flex items-center justify-center text-white text-xs font-bold shrink-0 mt-1">
+          {user.firstName?.[0] || user.username?.[0] || "U"}
+        </div>
+        <div className="flex-1 space-y-2">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            placeholder="What are your thoughts?"
+            rows={4}
+            className="w-full p-3 bg-[#1a282d] border border-[#223237] rounded-lg text-sm outline-none focus:border-[#ff4500]/50 transition-colors text-[#d7dadc] placeholder:text-[#82959b] resize-y"
+            disabled={loading}
+            required
+          />
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              disabled={loading || text.trim().length === 0}
+              size="sm"
+            >
+              {loading ? "Posting..." : "Comment"}
+            </Button>
+          </div>
+        </div>
       </div>
     </form>
-  );
+  )
 }

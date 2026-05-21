@@ -1,63 +1,57 @@
-import prisma from "@/lib/prisma";
-import { auth, currentUser } from "@clerk/nextjs/server";
-import { notFound, redirect } from "next/navigation";
-import CreatePostForm from "@/components/CreatePostForm";
+import prisma from "@/lib/prisma"
+import type { Metadata } from "next"
+import { ensureUser } from "@/lib/auth"
+import { notFound, redirect } from "next/navigation"
+import Link from "next/link"
+import CreatePostForm from "@/components/CreatePostForm"
+import { ArrowLeft } from "lucide-react"
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  return {
+    title: `Create Post — r/${slug}`,
+    description: `Create a new post in r/${slug}`,
+  }
+}
 
 interface PageProps {
-  params: Promise<{
-    slug: string;
-  }>;
+  params: Promise<{ slug: string }>
 }
 
 export default async function SubmitPostPage({ params }: PageProps) {
-  const { slug } = await params;
-  
-  // 1. Get the authenticated user from Clerk
-  const { userId } = await auth();
-  const clerkUser = await currentUser();
+  const { slug } = await params
+  const user = await ensureUser()
 
-  // If they aren't logged in, redirect them away
-  if (!userId || !clerkUser) {
-    return redirect("/"); 
+  if (!user) {
+    return redirect("/")
   }
 
-  // 2. THE SYNC: Ensure the user exists in your Supabase database
-  await prisma.user.upsert({
-    where: { id: userId },
-    update: {}, // Do nothing if they already exist
-    create: {
-      id: userId,
-      // Fallback to "Anonymous" if they haven't set a name in Clerk
-      username: clerkUser.firstName || "Anonymous", 
-      email: clerkUser.emailAddresses[0].emailAddress,
-    },
-  });
-
-  // 3. Fetch the community to ensure it exists
   const community = await prisma.community.findUnique({
     where: { slug },
-  });
+  })
 
   if (!community) {
-    return notFound();
+    return notFound()
   }
 
   return (
-    <div className="max-w-3xl mx-auto mt-10 p-4">
-      <div className="border-b border-gray-200 pb-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
+    <div className="max-w-2xl mx-auto px-4 py-8 min-h-screen bg-[#030303]">
+      <div className="mb-4">
+        <Link
+          href={`/r/${community.slug}`}
+          className="inline-flex items-center gap-1 text-sm text-[#82959b] hover:text-[#d7dadc] no-underline hover:underline"
+        >
+          <ArrowLeft className="size-4" />
+          Back to r/{community.name}
+        </Link>
+        <h1 className="text-xl font-bold text-[#d7dadc] mt-2">
           Create a post in r/{community.name}
         </h1>
       </div>
 
-     
-      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm flex flex-col gap-4">
-        {/* Interactive Form Component */}
-      <CreatePostForm 
-        communityId={community.id} 
-        communitySlug={community.slug} 
-      />
+      <div className="bg-[#1a282d] border border-[#223237] rounded-2xl p-5">
+        <CreatePostForm communityId={community.id} communityName={community.name} />
       </div>
     </div>
-  );
+  )
 }

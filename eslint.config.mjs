@@ -13,6 +13,12 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
+  {
+    rules: {
+      "@next/next/no-img-element": "warn",
+      "jsx-a11y/alt-text": ["warn", { elements: ["img"] }],
+    },
+  },
 ]);
 
 export default eslintConfig;

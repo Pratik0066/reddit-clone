@@ -1,41 +1,68 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import prisma from "@/lib/prisma"
+import { ensureUser } from "@/lib/auth"
+import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
   try {
-    // 1. Check if the user is logged in
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const user = await ensureUser()
+    if (!user) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    // 2. Parse the incoming form data
-    const body = await req.json();
-    const { title, content, communityId } = body;
+    const body = await req.json()
+    const { title, content, communityId, imageUrl } = body
 
-    // 3. Basic validation
-    if (!title || title.trim().length === 0) {
-      return new NextResponse("Title is required", { status: 400 });
-    }
+    const safeCommunityId = communityId === "" ? undefined : communityId
 
-    if (!communityId) {
-      return new NextResponse("Community ID is required", { status: 400 });
-    }
-
-    // 4. Save the post to the Supabase database
     const post = await prisma.post.create({
       data: {
         title,
         content,
-        communityId,
-        authorId: userId, // This links the post to the logged-in Clerk user!
+        imageUrl,
+        communityId: safeCommunityId,
+        authorId: user.id,
       },
-    });
+    })
 
-    return NextResponse.json(post);
+    return NextResponse.json(post)
   } catch (error) {
-    console.error("POST_CREATION_ERROR", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("POST_CREATION_ERROR", error)
+    return new NextResponse("Bad Request", { status: 400 })
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const user = await ensureUser()
+    if (!user) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+
+    const body = await req.json()
+    const { postId } = body
+
+    if (!postId) {
+      return new NextResponse("Missing postId", { status: 400 })
+    }
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { authorId: true },
+    })
+
+    if (!post) {
+      return new NextResponse("Post not found", { status: 404 })
+    }
+
+    if (post.authorId !== user.id) {
+      return new NextResponse("Forbidden", { status: 403 })
+    }
+
+    await prisma.post.delete({ where: { id: postId } })
+
+    return NextResponse.json({ message: "Post deleted" })
+  } catch (error) {
+    console.error("POST_DELETE_ERROR", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }

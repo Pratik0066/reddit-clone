@@ -1,60 +1,137 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum VoteType {
+  UP
+  DOWN
 }
 
 model User {
-  id       String    @id @default(cuid())
-  email    String    @unique
-  username String    @unique
-  posts    Post[]
-  comments Comment[]
-  votes    Vote[]
+  id           String    @id @default(cuid())
+  email        String    @unique
+  username     String    @unique
+  imageUrl     String?
+  bio          String    @default("")
+  posts        Post[]
+  comments     Comment[]
+  votes        Vote[]
+  commentVotes CommentVote[]
+  communities  CommunityMember[]
+  savedPosts   SavedPost[]
+  createdAt    DateTime  @default(now())
+  postKarma    Int       @default(0)
+  commentKarma Int       @default(0)
 }
 
 model Community {
-  id        String   @id @default(cuid())
-  name      String   @unique
-  slug      String   @unique
-  posts     Post[]
-  createdAt DateTime @default(now())
+  id          String             @id @default(cuid())
+  name        String             @unique
+  slug        String             @unique
+  description String             @default("")
+  icon        String?
+  banner      String?
+  posts       Post[]
+  members     CommunityMember[]
+  createdAt   DateTime           @default(now())
+
+  @@index([slug])
+}
+
+model CommunityMember {
+  id          String    @id @default(cuid())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  communityId String
+  joinedAt    DateTime  @default(now())
+
+  @@unique([userId, communityId])
+  @@index([communityId])
+  @@index([userId])
 }
 
 model Post {
-  id          String    @id @default(cuid())
-  title       String
-  content     String
-  imageUrl    String?
-  community   Community @relation(fields: [communityId], references: [id])
-  communityId String
-  author      User      @relation(fields: [authorId], references: [id])
-  authorId    String
-  comments    Comment[]
-  votes       Vote[]
-  createdAt   DateTime  @default(now())
+  id           String    @id @default(cuid())
+  title        String
+  content      String
+  imageUrl     String?
+  linkUrl      String?
+  commentCount Int       @default(0)
+  community    Community? @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  communityId  String?
+  author       User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorId     String
+  comments     Comment[]
+  votes        Vote[]
+  savedBy      SavedPost[]
+  createdAt    DateTime  @default(now())
+
+  @@index([communityId])
+  @@index([authorId])
+  @@index([createdAt])
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   content   String
-  post      Post     @relation(fields: [postId], references: [id])
+  voteCount Int            @default(0)
+  post      Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId    String
-  author    User     @relation(fields: [authorId], references: [id])
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
   authorId  String
-  createdAt DateTime @default(now())
+  parent    Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  parentId  String?
+  replies   Comment[]      @relation("CommentReplies")
+  votes     CommentVote[]
+  createdAt DateTime       @default(now())
+
+  @@index([postId])
+  @@index([authorId])
+  @@index([parentId])
 }
 
 model Vote {
-  id     String @id @default(cuid())
-  type   String // e.g., 'UPVOTE' or 'DOWNVOTE'
-  user   User   @relation(fields: [userId], references: [id])
+  id     String   @id @default(cuid())
+  type   VoteType
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId String
-  post   Post   @relation(fields: [postId], references: [id])
+  post   Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   postId String
+
+  @@unique([userId, postId])
+  @@index([postId])
+  @@index([userId])
+}
+
+model CommentVote {
+  id        String   @id @default(cuid())
+  type      VoteType
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  commentId String
+
+  @@unique([userId, commentId])
+  @@index([commentId])
+  @@index([userId])
+}
+
+model SavedPost {
+  id        String   @id @default(cuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    String
+  savedAt   DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([userId])
+  @@index([postId])
 }

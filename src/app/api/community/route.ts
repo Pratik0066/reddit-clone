@@ -1,46 +1,76 @@
-import { NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { auth } from "@clerk/nextjs/server";
+import { NextResponse } from "next/server"
+import prisma from "@/lib/prisma"
+import { auth } from "@clerk/nextjs/server"
+import { ensureUser } from "@/lib/auth"
+
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const joined = searchParams.get("joined")
+  const { userId } = await auth()
+
+  if (joined === "true" && userId) {
+    const memberships = await prisma.communityMember.findMany({
+      where: { userId },
+      include: {
+        community: {
+          select: { id: true, name: true, slug: true, icon: true },
+        },
+      },
+      orderBy: { joinedAt: "desc" },
+    })
+    return NextResponse.json(memberships.map((m) => m.community))
+  }
+
+  const communities = await prisma.community.findMany({
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, slug: true, icon: true, _count: { select: { posts: true } } },
+    take: 50,
+  })
+
+  return NextResponse.json(communities)
+}
 
 export async function POST(req: Request) {
   try {
-    // 1. Check if the user is authenticated
-    const { userId } = await auth();
-    if (!userId) {
-      return new NextResponse("Unauthorized", { status: 401 });
+    const user = await ensureUser()
+    if (!user) {
+      return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    // 2. Parse the request body (like req.body in Express)
-    const body = await req.json();
-    const { name } = body;
+    const body = await req.json()
+    const { name, description } = body
 
     if (!name || name.length < 3) {
-      return new NextResponse("Community name must be at least 3 characters", { status: 400 });
+      return new NextResponse("Community name must be at least 3 characters", {
+        status: 400,
+      })
     }
 
-    // 3. Create a URL-friendly slug (e.g., "NextJS Devs" -> "nextjs-devs")
-    const slug = name.toLowerCase().replace(/\s+/g, '-');
+    const slug = name.toLowerCase().replace(/\s+/g, "-")
 
-    // 4. Check if a community with this name already exists
     const existingCommunity = await prisma.community.findUnique({
       where: { name },
-    });
+    })
 
     if (existingCommunity) {
-      return new NextResponse("Community already exists", { status: 409 });
+      return new NextResponse("Community already exists", { status: 409 })
     }
 
-    // 5. Save to Supabase using Prisma
     const community = await prisma.community.create({
       data: {
         name,
         slug,
+        description: description || "",
       },
-    });
+    })
 
-    return NextResponse.json(community);
+    await prisma.communityMember.create({
+      data: { userId: user.id, communityId: community.id },
+    })
+
+    return NextResponse.json(community)
   } catch (error) {
-    console.error("COMMUNITY_POST_ERROR", error);
-    return new NextResponse("Internal Server Error", { status: 500 });
+    console.error("COMMUNITY_POST_ERROR", error)
+    return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
